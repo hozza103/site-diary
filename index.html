@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Site Diary + Task Tree</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-auth.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-database.js"></script>
     <style>
         /* --- CSS VARIABLES & RESET --- */
@@ -371,12 +372,35 @@
         firebase.initializeApp(firebaseConfig);
         db = firebase.database();
 
+        // --- AUTHENTICATION (CRITICAL FOR SECURITY) ---
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                // User is signed in (anonymously)
+                console.log('Authenticated with user ID:', user.uid);
+                initApp();
+            } else {
+                // No user signed in, sign in anonymously
+                console.log('Signing in anonymously...');
+                firebase.auth().signInAnonymously()
+                    .then(() => {
+                        console.log('Anonymous sign-in successful');
+                    })
+                    .catch((error) => {
+                        console.error('Authentication error:', error);
+                        alert('Failed to authenticate. Please refresh the page.');
+                    });
+            }
+        });
+
         // --- UTILS ---
         function getFormattedDate(d) { return d.toISOString().split('T')[0]; }
         function getDisplayDate(str) { return new Date(str+"T00:00:00").toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }); }
         function getMonthTitle(d) { return d.toLocaleDateString('en-US', { month:'long', year:'numeric' }); }
 
         function initApp() {
+            // Only initialize if we haven't already
+            if (actualTodayKey) return;
+            
             const d = new Date();
             actualTodayKey = getFormattedDate(d);
             currentViewDateKey = actualTodayKey;
@@ -786,7 +810,8 @@
             }
         }
 
-        window.onload = initApp;
+        // Don't auto-initialize on window.onload anymore - wait for auth
+        // window.onload = initApp; // REMOVED - auth handles initialization now
     </script>
 </body>
 </html>
