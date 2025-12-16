@@ -356,6 +356,8 @@
         let currentEntryType = "task";
         let taskToDeleteId = null;
         let db = null;
+        let isAuthenticated = false;
+        let dbListener = null;
 
         // --- FIREBASE CONFIG ---
         const firebaseConfig = {
@@ -376,17 +378,22 @@
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
                 // User is signed in (anonymously)
-                console.log('Authenticated with user ID:', user.uid);
-                initApp();
+                console.log('✅ Authenticated with user ID:', user.uid);
+                isAuthenticated = true;
+                
+                // Only initialize app after authentication
+                if (!actualTodayKey) {
+                    initApp();
+                }
             } else {
                 // No user signed in, sign in anonymously
-                console.log('Signing in anonymously...');
+                console.log('🔐 Signing in anonymously...');
+                document.getElementById('date-display').textContent = "Authenticating...";
+                
                 firebase.auth().signInAnonymously()
-                    .then(() => {
-                        console.log('Anonymous sign-in successful');
-                    })
                     .catch((error) => {
-                        console.error('Authentication error:', error);
+                        console.error('❌ Authentication error:', error);
+                        document.getElementById('date-display').textContent = "Auth Failed";
                         alert('Failed to authenticate. Please refresh the page.');
                     });
             }
@@ -398,13 +405,15 @@
         function getMonthTitle(d) { return d.toLocaleDateString('en-US', { month:'long', year:'numeric' }); }
 
         function initApp() {
-            // Only initialize if we haven't already
-            if (actualTodayKey) return;
+            // Only initialize if we haven't already and if authenticated
+            if (actualTodayKey || !isAuthenticated) return;
+            
+            console.log('🚀 Initializing app...');
             
             const d = new Date();
             actualTodayKey = getFormattedDate(d);
             currentViewDateKey = actualTodayKey;
-            document.getElementById('date-display').textContent = "Syncing...";
+            document.getElementById('date-display').textContent = "Loading...";
 
             // Check Migration
             const localRaw = localStorage.getItem('SITE_DIARY_DATA');
@@ -414,36 +423,51 @@
                         entries: JSON.parse(localRaw),
                         rules: JSON.parse(localStorage.getItem('SITE_DIARY_RULES')||"[]"),
                         qa: JSON.parse(localStorage.getItem('SITE_DIARY_QA')||"[]")
-                    }).then(() => localStorage.setItem('FIREBASE_MIGRATED','true'));
+                    }).then(() => {
+                        localStorage.setItem('FIREBASE_MIGRATED','true');
+                        console.log('✅ Migration complete');
+                    }).catch(err => {
+                        console.error('❌ Migration failed:', err);
+                    });
                 }
             }
 
-            // Listen to DB
-            db.ref('siteDiary').on('value', (snapshot) => {
-                const data = snapshot.val() || {};
-                appData = data.entries || {};
-                rulesData = data.rules || [];
-                qaData = data.qa || [];
+            // Listen to DB (only set up once)
+            if (!dbListener) {
+                dbListener = db.ref('siteDiary').on('value', (snapshot) => {
+            // Listen to DB (only set up once)
+            if (!dbListener) {
+                dbListener = db.ref('siteDiary').on('value', (snapshot) => {
+                    const data = snapshot.val() || {};
+                    appData = data.entries || {};
+                    rulesData = data.rules || [];
+                    qaData = data.qa || [];
 
-                // --- CRITICAL FIX FOR CRASHES ---
-                // Filter out nulls and fix broken arrays
-                Object.keys(appData).forEach(key => {
-                    if(!appData[key].tasks) appData[key].tasks = [];
-                    else if(!Array.isArray(appData[key].tasks)) appData[key].tasks = Object.values(appData[key].tasks);
+                    // --- CRITICAL FIX FOR CRASHES ---
+                    // Filter out nulls and fix broken arrays
+                    Object.keys(appData).forEach(key => {
+                        if(!appData[key].tasks) appData[key].tasks = [];
+                        else if(!Array.isArray(appData[key].tasks)) appData[key].tasks = Object.values(appData[key].tasks);
+                        
+                        // REMOVE NULLS (The main fix)
+                        appData[key].tasks = appData[key].tasks.filter(t => t !== null && t !== undefined);
+                    });
+
+                    if(!appData[actualTodayKey]) initDayEntry(actualTodayKey);
+
+                    processRecurringRules();
+                    runRollingWave();
                     
-                    // REMOVE NULLS (The main fix)
-                    appData[key].tasks = appData[key].tasks.filter(t => t !== null && t !== undefined);
+                    if(isCalendarMode) renderCalendar();
+                    else if(isQAMode) renderQAView();
+                    else renderDayView();
+                    
+                    console.log('✅ Data synced');
+                }, (error) => {
+                    console.error('❌ Database error:', error);
+                    document.getElementById('date-display').textContent = "Sync Error";
                 });
-
-                if(!appData[actualTodayKey]) initDayEntry(actualTodayKey);
-
-                processRecurringRules();
-                runRollingWave();
-                
-                if(isCalendarMode) renderCalendar();
-                else if(isQAMode) renderQAView();
-                else renderDayView();
-            });
+            }
         }
 
         function initDayEntry(key) {
