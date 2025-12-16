@@ -147,8 +147,12 @@
         }
 
         .checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 14px; border-bottom: 1px dashed #eee; cursor: pointer; }
-        .checklist-checkbox { width: 18px; height: 18px; border: 2px solid #666; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+        .checklist-checkbox { width: 18px; height: 18px; border: 2px solid #666; border-radius: 4px; flex-shrink: 0; margin-top: 2px; position: relative; }
         .checklist-item.status-done .checklist-checkbox { background: var(--success-color); border-color: var(--success-color); }
+        .checklist-item.status-done .checklist-checkbox::after { content: '✓'; color: white; position: absolute; top: -2px; left: 2px; font-size: 14px; font-weight: bold; }
+        .checklist-item.status-followup .checklist-checkbox { background: var(--warning-color); border-color: var(--warning-color); }
+        .checklist-item.status-followup .checklist-checkbox::after { content: '!'; color: white; position: absolute; top: -3px; left: 5px; font-size: 14px; font-weight: bold; }
+        .checklist-item.status-followup .checklist-text { color: var(--warning-color); font-weight: 600; }
         
         .progress-bar-bg { background: #E0E0E0; height: 6px; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
         .progress-bar-fill { background: var(--success-color); height: 100%; transition: width 0.3s ease; }
@@ -606,10 +610,14 @@
                 if(t.checklist && t.checklist.length) {
                     const done = t.checklist.filter(i=>i.status==='done'||i.done).length;
                     const pct = Math.round((done/t.checklist.length)*100);
-                    let items = t.checklist.map((i,idx) => `
-                        <div class="checklist-item status-${i.status||(i.done?'done':'pending')}" onclick="toggleSubtask('${t.id}',${idx})">
-                            <div class="checklist-checkbox"></div><div>${i.text}</div>
-                        </div>`).join('');
+                    let items = t.checklist.map((i,idx) => {
+                        const status = i.status || (i.done ? 'done' : 'pending');
+                        return `
+                        <div class="checklist-item status-${status}" onclick="toggleSubtask('${t.id}',${idx})">
+                            <div class="checklist-checkbox"></div>
+                            <div class="checklist-text">${i.text}</div>
+                        </div>`;
+                    }).join('');
                     clHtml = `<div class="checklist-container">
                         <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
                         ${items}
@@ -743,13 +751,40 @@
             document.getElementById('qa-today-count').textContent = qaData.filter(q=>q.dateAsked===actualTodayKey).length;
             if(!qaData.length) p.innerHTML = "<div style='text-align:center; color:#999;'>No questions.</div>";
             qaData.forEach(q => {
-                let h = `<div class="qa-card"><div class="qa-meta"><span>${getDisplayDate(q.dateAsked)}</span><span style="color:red;cursor:pointer;" onclick="deleteQuestion('${q.id}')">DELETE</span></div><div class="qa-question">${q.text}</div>`;
+                let h = `<div class="qa-card"><div class="qa-meta"><span>${getDisplayDate(q.dateAsked)}</span><div><span style="color:var(--qa-color);cursor:pointer;margin-right:12px;" onclick="openAnswerModal('${q.id}')">ANSWER</span><span style="color:red;cursor:pointer;" onclick="deleteQuestion('${q.id}')">DELETE</span></div></div><div class="qa-question">${q.text}</div>`;
                 if(q.answer) h+=`<div class="qa-answer-box"><b>Response:</b><br>${q.answer}</div>`;
                 h+=`</div>`;
                 if(q.answer) a.innerHTML+=h; else p.innerHTML+=h;
             });
         }
         function deleteQuestion(id) { if(confirm("Delete?")) { qaData=qaData.filter(q=>q.id!==id); saveQA(); } }
+
+        function openAnswerModal(id) {
+            const q = qaData.find(x => x.id === id);
+            if(!q) return;
+            document.getElementById('answer-id').value = id;
+            document.getElementById('answer-modal-q-text').textContent = q.text;
+            document.getElementById('answer-input').value = q.answer || '';
+            document.getElementById('answer-modal').classList.add('open');
+        }
+
+        function closeAnswerModal() {
+            document.getElementById('answer-modal').classList.remove('open');
+        }
+
+        function saveAnswer() {
+            const id = document.getElementById('answer-id').value;
+            const answer = document.getElementById('answer-input').value.trim();
+            if(!answer) return alert("Please enter an answer");
+            
+            const q = qaData.find(x => x.id === id);
+            if(q) {
+                q.answer = answer;
+                q.dateAnswered = actualTodayKey;
+                saveQA();
+                closeAnswerModal();
+            }
+        }
 
         window.onload = initApp;
     </script>
