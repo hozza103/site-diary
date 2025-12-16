@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Site Diary + Task Tree</title>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/8.10.1/firebase-database.js"></script>
     <style>
         /* --- CSS VARIABLES & RESET --- */
         :root {
@@ -150,6 +150,9 @@
         .checklist-checkbox { width: 18px; height: 18px; border: 2px solid #666; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
         .checklist-item.status-done .checklist-checkbox { background: var(--success-color); border-color: var(--success-color); }
         
+        .progress-bar-bg { background: #E0E0E0; height: 6px; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
+        .progress-bar-fill { background: var(--success-color); height: 100%; transition: width 0.3s ease; }
+        
         .status-btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 4px; }
         .status-btn { background: #FFF; border: 1px solid #D1D5DB; padding: 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; }
         .status-btn.active-completed { background: var(--success-color); color: white; border-color: var(--success-color); }
@@ -190,6 +193,7 @@
         .qa-card { border-left: 5px solid var(--qa-color); padding: 16px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 8px; }
         .qa-question { font-weight: bold; margin-bottom: 8px; }
         .qa-answer-box { background: #FAFAFA; padding: 10px; border-radius: 4px; margin-top: 8px; font-size: 14px; }
+        .qa-meta { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -204,7 +208,7 @@
             <button class="view-toggle-btn" onclick="toggleView()" id="view-toggle-text">CALENDAR</button>
             <button class="view-toggle-btn qa-toggle-btn" onclick="toggleQA()" id="qa-toggle-text">Q&A</button>
         </div>
-        <button class="nav-btn hidden" id="nav-next" onclick="navDate(1)">&#10095;</button>
+        <button class="nav-btn" id="nav-next" onclick="navDate(1)">&#10095;</button>
     </header>
 
     <div class="container">
@@ -335,21 +339,7 @@
     </div>
 
     <script>
-        // --- FIREBASE CONFIG ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyBt4C1e7tl6r3kaMTquH2RfXR6pKmj4fv8",
-            appId: "1:829300004668:web:be01e15a18d2a7022d3039",
-            
-            authDomain: "site-diary-35e48.firebaseapp.com",
-            projectId: "site-diary-35e48",
-            storageBucket: "site-diary-35e48.appspot.com",
-            messagingSenderId: "367375252874",
-            databaseURL: "https://site-diary-35e48-default-rtdb.firebaseio.com/",
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-
+        // --- GLOBAL VARIABLES (Initialize first) ---
         let appData = {};
         let rulesData = [];
         let qaData = [];
@@ -360,6 +350,22 @@
         let isQAMode = false;
         let currentEntryType = "task";
         let taskToDeleteId = null;
+        let db = null;
+
+        // --- FIREBASE CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBt4C1e7tl6r3kaMTquH2RfXR6pKmj4fv8",
+            appId: "1:829300004668:web:be01e15a18d2a7022d3039",
+            authDomain: "site-diary-35e48.firebaseapp.com",
+            projectId: "site-diary-35e48",
+            storageBucket: "site-diary-35e48.appspot.com",
+            messagingSenderId: "367375252874",
+            databaseURL: "https://site-diary-35e48-default-rtdb.firebaseio.com/",
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
 
         // --- UTILS ---
         function getFormattedDate(d) { return d.toISOString().split('T')[0]; }
@@ -476,8 +482,13 @@
             document.getElementById('view-toggle-text').textContent = isCalendarMode ? "LIST" : "CALENDAR";
             document.getElementById('date-status').textContent = isCalendarMode ? "MONTH VIEW" : (currentViewDateKey===actualTodayKey?"TODAY":"LOG");
             
-            // Fix Arrows
-            document.getElementById('nav-next').classList.toggle('hidden', !isCalendarMode && currentViewDateKey===actualTodayKey);
+            // Show/hide navigation arrows based on mode
+            document.getElementById('nav-prev').classList.remove('hidden');
+            if(isCalendarMode) {
+                document.getElementById('nav-next').classList.remove('hidden');
+            } else {
+                document.getElementById('nav-next').classList.toggle('hidden', currentViewDateKey===actualTodayKey);
+            }
             
             if(isCalendarMode) {
                 currentCalendarMonth = new Date(currentViewDateKey+"T00:00:00");
