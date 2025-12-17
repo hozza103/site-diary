@@ -440,9 +440,6 @@
             // Listen to DB (only set up once)
             if (!dbListener) {
                 dbListener = db.ref('siteDiary').on('value', (snapshot) => {
-            // Listen to DB (only set up once)
-            if (!dbListener) {
-                dbListener = db.ref('siteDiary').on('value', (snapshot) => {
                     const data = snapshot.val() || {};
                     appData = data.entries || {};
                     rulesData = data.rules || [];
@@ -838,9 +835,6 @@
                 closeAnswerModal();
             }
         }
-
-        // Don't auto-initialize on window.onload anymore - wait for auth
-        // window.onload = initApp; // REMOVED - auth handles initialization now
     </script>
 </body>
 </html>
